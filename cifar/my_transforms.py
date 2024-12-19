@@ -26,6 +26,7 @@ class Clip(torch.nn.Module):
         self.max_val = max_val
 
     def forward(self, img):
+        # 이미지 픽셀값이 0 ~ 1사이에서만 놀도록 지정
         return torch.clip(img, self.min_val, self.max_val)
 
     def __repr__(self):
@@ -35,8 +36,8 @@ class ColorJitterPro(ColorJitter):
     """Randomly change the brightness, contrast, saturation, and gamma correction of an image."""
 
     def __init__(self, brightness=0, contrast=0, saturation=0, hue=0, gamma=0):
-        super().__init__(brightness, contrast, saturation, hue)
-        self.gamma = self._check_input(gamma, 'gamma')
+        super().__init__(brightness, contrast, saturation, hue) # 해당 파라미터들은 부모 클래스(ColorJitter)에서 초기화
+        self.gamma = self._check_input(gamma, 'gamma') # gammas는 멤버변수로 설정하여 자식 클래스(ColorJitterPro)에서 초기화
 
     @staticmethod
     @torch.jit.unused
@@ -84,10 +85,14 @@ class ColorJitterPro(ColorJitter):
         Returns:
             PIL Image or Tensor: Color jittered image.
         """
-        fn_idx = torch.randperm(5)
+        fn_idx = torch.randperm(5) # tensor에 대해서 무작위 순서로 permutation 결과 예시) [4, 1, 0 ,3 ,2]
+        # 왜 random한 순서로 colorjitter를 적용할까?
+        # 다양한 방식으로 augmentation을 하여, 다양한 조합의 데이터 확보 및 오버피팅 방지
         for fn_id in fn_idx:
             if fn_id == 0 and self.brightness is not None:
                 brightness = self.brightness
+                # 여기도 in-place 함수(uniform_)를 통해 원본에 바로 colorjitter 적용
+                # tensor.item()을 통해 tensor가 아니라 실제 value인 brightness_factor를 받아옴
                 brightness_factor = torch.tensor(1.0).uniform_(brightness[0], brightness[1]).item()
                 img = F.adjust_brightness(img, brightness_factor)
 
