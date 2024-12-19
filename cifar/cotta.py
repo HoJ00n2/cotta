@@ -12,13 +12,14 @@ import logging
 
 
 def get_tta_transforms(gaussian_std: float=0.005, soft=False, clip_inputs=False):
-    img_shape = (32, 32, 3)
-    n_pixels = img_shape[0]
+    img_shape = (32, 32, 3) # 아직 tensor가 아닌 img라 (H,W,C)의 순서
+    n_pixels = img_shape[0] # H,W resolution이 같으므로 H로 pixel 개수 할당
 
     clip_min, clip_max = 0.0, 1.0
 
     p_hflip = 0.5
 
+    # 데이터 증강
     tta_transforms = transforms.Compose([
         my_transforms.Clip(0.0, 1.0), 
         my_transforms.ColorJitterPro(
@@ -48,6 +49,9 @@ def get_tta_transforms(gaussian_std: float=0.005, soft=False, clip_inputs=False)
 
 def update_ema_variables(ema_model, model, alpha_teacher):
     for ema_param, param in zip(ema_model.parameters(), model.parameters()):
+        # 모든 네트워크의 파라미터들에 대해서 param[:]
+        # 각 파라미터의 데이터 w & b들 data[:] -> nn.Conv2d.weight or nn.Conv2d.bias 등등..
+        # 즉, 네트워크의 모든 학습가능한 파라미터들을 업데이트
         ema_param.data[:] = alpha_teacher * ema_param[:].data[:] + (1 - alpha_teacher) * param[:].data[:]
     return ema_model
 
@@ -64,7 +68,8 @@ class CoTTA(nn.Module):
         self.steps = steps
         assert steps > 0, "cotta requires >= 1 step(s) to forward and update"
         self.episodic = episodic
-        
+
+        # pre-trained model 가중치로 복사 (학습 과정 초기화)
         self.model_state, self.optimizer_state, self.model_ema, self.model_anchor = \
             copy_model_and_optimizer(self.model, self.optimizer)
         self.transform = get_tta_transforms()    
@@ -73,25 +78,36 @@ class CoTTA(nn.Module):
         self.ap = ap
 
     def forward(self, x):
+        # CoTTA 방식으로 모델 적응
         if self.episodic:
             self.reset()
 
         for _ in range(self.steps):
             outputs = self.forward_and_adapt(x, self.model, self.optimizer)
 
-        return outputs
+        return outputs # 선생모델 반환
 
     def reset(self):
+        # 불러올 모델 가중치가 없다면
         if self.model_state is None or self.optimizer_state is None:
             raise Exception("cannot reset without saved model/optimizer state")
+        # 모델 가중치 불러오기
+        # 여기선 self.model을 인자로 넣었으므로 학생 모델에 대한 초기화
         load_model_and_optimizer(self.model, self.optimizer,
                                  self.model_state, self.optimizer_state)
-        # Use this line to also restore the teacher model                         
+
+        # Use this line to also restore the teacher model
+        # 여긴 모든 모델들을(model, model_ema, model_anchor) self.model의 가중치로 복사
         self.model_state, self.optimizer_state, self.model_ema, self.model_anchor = \
             copy_model_and_optimizer(self.model, self.optimizer)
 
 
-    @torch.enable_grad()  # ensure grads in possible no grad context for testing
+    @torch.enable_grad()
+    # ensure grads in possible no grad context for testing
+    # 해석하면 "테스트를 위해 가능한 no grad(자동 미분 비활성화) 컨텍스트에서 그래디언트를 보장"
+    # 이 표현은 테스트 시점에 자동 미분이 비활성화된 상태에서도(예: torch.no_grad() 사용 중)
+    # 그래디언트를 사용할 수 있도록 조치하거나, 그래디언트 계산을 보장하기 위한 상황을 설명하는 문장입니다.
+    # 위 기능은 autograd의 기능과 같은 기능 (학습, 평가에 따라 grad 흐름 조절)
     def forward_and_adapt(self, x, model, optimizer):
         outputs = self.model(x)
         # Teacher Prediction
@@ -105,6 +121,9 @@ class CoTTA(nn.Module):
             outputs_emas.append(outputs_)
         # Threshold choice discussed in supplementary
         if anchor_prob.mean(0)<self.ap:
+            # 32개에 대한 출력값을 stack하고 행방향으로 평균값을 메김
+            # torch.stack(outputs_emas) -> [32, outputs_emas feature]
+            # 32개에 대한 각 feature 출력값을 평균
             outputs_ema = torch.stack(outputs_emas).mean(0)
         else:
             outputs_ema = standard_ema
@@ -119,8 +138,11 @@ class CoTTA(nn.Module):
         if True:
             for nm, m  in self.model.named_modules():
                 for npp, p in m.named_parameters():
+                    # 학습 가능한 wegiht, bias만 restore 시키겠다.
                     if npp in ['weight', 'bias'] and p.requires_grad:
+                        # parameter shape 중 랜덤하게 마스킹
                         mask = (torch.rand(p.shape)<self.rst).float().cuda() 
+                        # 마스킹 영역 빼고 restore
                         with torch.no_grad():
                             p.data = self.model_state[f"{nm}.{npp}"] * mask + p * (1.-mask)
         return outputs_ema
@@ -141,8 +163,12 @@ def collect_params(model):
     """
     params = []
     names = []
+    # model.parameters()와 비슷한 역할을 함 : 각 파라미터에 접근
+    # model.named_modules()를 통해 특정 layer에 대해서 더 세밀한 조정 가능
+    # 여기서 값을 쓰진 않지만 이후 nm을 통해 관리하는 것을 보아 각 layer별로 따로 파라미터를 저장
     for nm, m in model.named_modules():
-        if True:#isinstance(m, nn.BatchNorm2d): collect all 
+        if True:
+            #isinstance(m, nn.BatchNorm2d): collect all
             for np, p in m.named_parameters():
                 if np in ['weight', 'bias'] and p.requires_grad:
                     params.append(p)

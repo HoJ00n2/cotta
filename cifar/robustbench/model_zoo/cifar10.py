@@ -6,11 +6,14 @@ from torch import nn
 
 from robustbench.model_zoo.architectures.dm_wide_resnet import CIFAR10_MEAN, CIFAR10_STD, \
     DMWideResNet, Swish, DMPreActResNet
+# for imagenet
 from robustbench.model_zoo.architectures.resnet import Bottleneck, BottleneckChen2020AdversarialNet, \
     PreActBlock, \
     PreActBlockV2, PreActResNet, ResNet, ResNet18
+# for cifar 100
 from robustbench.model_zoo.architectures.resnext import CifarResNeXt, \
     ResNeXtBottleneck
+# for cifar 10
 from robustbench.model_zoo.architectures.wide_resnet import WideResNet
 from robustbench.model_zoo.enums import ThreatModel
 

@@ -216,6 +216,8 @@ def clean_accuracy(model: nn.Module,
         device = x.device
     acc = 0.
     n_batches = math.ceil(x.shape[0] / batch_size)
+    # clean_accuracy에 관한 부분만 grad 흐름을 방지한다.
+    # 내부에서 호출한 model forward의 경우는 학습이 됨 (grad 흐름)
     with torch.no_grad():
         for counter in range(n_batches):
             x_curr = x[counter * batch_size:(counter + 1) *
@@ -223,8 +225,8 @@ def clean_accuracy(model: nn.Module,
             y_curr = y[counter * batch_size:(counter + 1) *
                        batch_size].to(device)
 
-            output = model(x_curr)
-            acc += (output.max(1)[1] == y_curr).float().sum()
+            output = model(x_curr) # 모델에 데이터를 입력하여 적응한 출력
+            acc += (output.max(1)[1] == y_curr).float().sum() # 평가 acc
 
     return acc.item() / x.shape[0]
 

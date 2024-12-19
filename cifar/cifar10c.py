@@ -14,7 +14,7 @@ import cotta
 
 from conf import cfg, load_cfg_fom_args
 
-
+# logger 호출 (이후 print 대신 사용하기 위함)
 logger = logging.getLogger(__name__)
 
 
@@ -48,10 +48,13 @@ def evaluate(description):
                     logger.warning("not resetting model")
             else:
                 logger.warning("not resetting model")
+            # 데이터셋 불러오기
             x_test, y_test = load_cifar10c(cfg.CORRUPTION.NUM_EX,
                                            severity, cfg.DATA_DIR, False,
                                            [corruption_type])
+            # 데이터셋 gpu 상에 올리기
             x_test, y_test = x_test.cuda(), y_test.cuda()
+            # 데이터셋으로 모델 평가
             acc = accuracy(model, x_test, y_test, cfg.TEST.BATCH_SIZE)
             err = 1. - acc
             logger.info(f"error % [{corruption_type}{severity}]: {err:.2%}")

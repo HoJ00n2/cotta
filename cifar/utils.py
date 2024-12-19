@@ -62,8 +62,8 @@ def convert_tensor_to_image(x: np.ndarray):
     :return: X with (Batch, H, W, feature_dims) or (H, W, feature_dims) between 0:255, uint8
     """
     X = x.copy()
-    X *= 255.0
-    X = np.round(X)
+    X *= 255.0 # 정규화 했던 것에서 다시 이미지 픽셀값 살려두기
+    X = np.round(X) # 소수점 빼기
     X = X.astype(np.uint8)
     if len(x.shape) == 3:
         X = np.transpose(X, [1, 2, 0])
@@ -76,11 +76,11 @@ def convert_image_to_tensor(x: np.ndarray):
     :param X: np.array of size (Batch, H, W, feature_dims) between 0:255, uint8
     :return: X with (Batch, feature_dims, H, W) float between [0:1]
     """
-    assert x.dtype == np.uint8
+    assert x.dtype == np.uint8 # 255.0 으로 정규화하기 위해 uint8
     X = x.copy()
     X = X.astype(np.float32)
-    X /= 255.0
-    X = np.transpose(X, [0, 3, 1, 2])
+    X /= 255.0 # 정규화
+    X = np.transpose(X, [0, 3, 1, 2]) # np [B, H, W, C] -> tensor [B, C, H, W]
     return X
 
 def majority_vote(x):

@@ -53,7 +53,9 @@ def load_cifar10(
         n_examples: Optional[int] = None,
         data_dir: str = './data',
         prepr: Optional[str] = 'none') -> Tuple[torch.Tensor, torch.Tensor]:
+    # 위의 : 의미는 type을 명시하기 위함 (데이터 무결성)
     transforms_test = PREPROCESSINGS[prepr]
+    # 여기는 torchvision에서 제공하는 기본적인 CIFAR10 dataset을 다운
     dataset = datasets.CIFAR10(root=data_dir,
                                train=False,
                                transform=transforms_test,
@@ -185,9 +187,11 @@ def load_corruptions_cifar(
         data_dir: str,
         corruptions: Sequence[str] = CORRUPTIONS,
         shuffle: bool = False) -> Tuple[torch.Tensor, torch.Tensor]:
+
     assert 1 <= severity <= 5
     n_total_cifar = 10000
 
+    # 데이터 경로 지정
     if not os.path.exists(data_dir):
         os.makedirs(data_dir)
 
@@ -195,17 +199,21 @@ def load_corruptions_cifar(
     data_root_dir = data_dir / CORRUPTIONS_DIR_NAMES[dataset]
 
     if not data_root_dir.exists():
+        # 입력 이미지에 대한 .npy 파일 다운로드
         zenodo_download(*ZENODO_CORRUPTIONS_LINKS[dataset], save_dir=data_dir)
 
+    # 라벨 경로 지정
     # Download labels
     labels_path = data_root_dir / 'labels.npy'
     if not os.path.isfile(labels_path):
         raise DownloadError("Labels are missing, try to re-download them.")
+    # .npy 파일 로드
     labels = np.load(labels_path)
 
     x_test_list, y_test_list = [], []
-    n_pert = len(corruptions)
+    n_pert = len(corruptions) # 노이즈 개수
     for corruption in corruptions:
+        # 입력 이미지 .npy 파일 호출
         corruption_file_path = data_root_dir / (corruption + '.npy')
         if not corruption_file_path.is_file():
             raise DownloadError(
@@ -224,6 +232,7 @@ def load_corruptions_cifar(
         rand_idx = np.random.permutation(np.arange(len(x_test)))
         x_test, y_test = x_test[rand_idx], y_test[rand_idx]
 
+    # 여기 전까지 x_test, y_test는 numpy 형태임 (즉, 이미지)
     # Make it in the PyTorch format
     x_test = np.transpose(x_test, (0, 3, 1, 2))
     # Make it compatible with our models
